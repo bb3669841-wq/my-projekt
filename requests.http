@@ -1,0 +1,35 @@
+### 1. Server salomatligini tekshirish
+GET http://localhost:5000/api/health
+
+### 2. Ro'yxatdan o'tish (Register)
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Ali Valiyev",
+  "email": "ali@example.com",
+  "password": "password123"
+}
+
+### 3. Tizimga kirish (Login)
+# Response headerda HttpOnly kuki (refreshToken) keladi
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ali@example.com",
+  "password": "password123"
+}
+
+### 4. Himoyalangan endpointga so'rov (Get Me)
+# <ACCESS_TOKEN> o'rniga login orqali olingan tokenni qo'ying
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer <ACCESS_TOKEN>
+
+### 5. Access tokenni yangilash (Silent Refresh)
+# Brauzer yoki REST Client avtomatik tarzda Cookie: refreshToken=<token> ni yuboradi
+POST http://localhost:5000/api/auth/refresh
+
+### 6. Tizimdan chiqish (Logout)
+POST http://localhost:5000/api/auth/logout
+

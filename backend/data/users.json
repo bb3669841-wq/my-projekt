@@ -1,0 +1,20 @@
+[
+  {
+    "_id": "usr_1794315718194n1y2i",
+    "name": "Ali",
+    "email": "ali@test.com",
+    "password": "$2a$10$NStpZgZTtpRbYpfCY1Tueu4gvBpypF9JOfp18r7sNzXnAn25b1aue",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzcl8xNzk0MzE1NzE4MTk0bjF5MmkiLCJpYXQiOjE3OTQzMTU3MjYsImV4cCI6MTc5NDkyMDUyNn0.TElj2EaK_8Z7FKczzeu7QYfai6vGY9EbT8VAd1pnjbY",
+    "createdAt": "2026-11-10T13:01:58.194Z",
+    "updatedAt": "2026-11-10T13:02:06.986Z"
+  },
+  {
+    "_id": "usr_1794315768086z8o8x",
+    "name": "Boss Boss",
+    "email": "shakhnozaliyevadoc@gmail.com",
+    "password": "$2a$10$sTd8fApQOGDKYLF3mRbm/uAl1XvVmHsQ23hmGOrR1eRLG/sdwhA5q",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzcl8xNzk0MzE1NzY4MDg2ejhvOHgiLCJpYXQiOjE3OTQzMTU4MTYsImV4cCI6MTc5NDkyMDYxNn0.Ak_VJs_3VxLzhNWSK8CFR1n9zAx3uPfOKaGO4JR4tfg",
+    "createdAt": "2026-11-10T13:02:48.086Z",
+    "updatedAt": "2026-11-10T13:03:36.151Z"
+  }
+]

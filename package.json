@@ -1,0 +1,14 @@
+{
+  "name": "fullstack-jwt-auth-system",
+  "version": "1.0.0",
+  "description": "Full-Stack JWT Authentication System with Access & Refresh Token",
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"green,cyan\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "start": "concurrently -n \"BACKEND,FRONTEND\" -c \"green,cyan\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
