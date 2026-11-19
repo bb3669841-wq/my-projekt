@@ -2,24 +2,47 @@ const nodemailer = require('nodemailer');
 
 let testTransporter = null;
 
-// Get transporter: Real Gmail/SMTP if configured, otherwise Ethereal
+// Get transporter: Google Cloud Console OAuth2, Google App Password, or Ethereal
 async function getTransporter() {
-  // If user configured real email in .env (e.g. Gmail App Password)
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    console.log(`📧 Using Real SMTP (${process.env.EMAIL_USER})`);
+  // Option 1: Google Cloud Console OAuth2 (Client ID + Client Secret + Refresh Token)
+  if (
+    process.env.GOOGLE_CLIENT_ID &&
+    process.env.GOOGLE_CLIENT_SECRET &&
+    process.env.GOOGLE_REFRESH_TOKEN &&
+    process.env.EMAIL_USER
+  ) {
+    console.log(`📧 Using Google Cloud Console OAuth2 (${process.env.EMAIL_USER})`);
     return {
       transporter: nodemailer.createTransport({
-        service: process.env.EMAIL_SERVICE || 'gmail',
+        service: 'gmail',
         auth: {
+          type: 'OAuth2',
           user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          refreshToken: process.env.GOOGLE_REFRESH_TOKEN
         }
       }),
       isReal: true
     };
   }
 
-  // Fallback: Ethereal test account
+  // Option 2: Google Gmail App Password (EMAIL_USER + EMAIL_PASS)
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    console.log(`📧 Using Google Gmail SMTP (${process.env.EMAIL_USER})`);
+    return {
+      transporter: nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS.replace(/\s+/g, '') // remove spaces if pasted as "xxxx xxxx xxxx xxxx"
+        }
+      }),
+      isReal: true
+    };
+  }
+
+  // Option 3: Fallback to Ethereal test account (Demo/Development)
   if (!testTransporter) {
     const testAccount = await nodemailer.createTestAccount();
     testTransporter = nodemailer.createTransport({
@@ -31,7 +54,7 @@ async function getTransporter() {
         pass: testAccount.pass
       }
     });
-    console.log('📧 Ethereal Email account active:', testAccount.user);
+    console.log('📧 Ethereal Email account active (Demo):', testAccount.user);
   }
 
   return {
@@ -40,7 +63,7 @@ async function getTransporter() {
   };
 }
 
-// Generate random 6-digit password/code
+// Generate random 6-digit password
 function generatePassword() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -100,7 +123,7 @@ async function sendPasswordEmail(toEmail, password) {
 
   const previewUrl = !isReal ? nodemailer.getTestMessageUrl(info) : null;
 
-  console.log(`📨 Password sent to ${toEmail} | Real: ${isReal} | Password: ${password}`);
+  console.log(`📨 Password email sent to ${toEmail} | Real: ${isReal} | Password: ${password}`);
   if (previewUrl) {
     console.log(`   Preview link: ${previewUrl}`);
   }

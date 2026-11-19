@@ -4,16 +4,17 @@ EduHub o'quv markazi uchun xavfsiz autentifikatsiya, role-based authorization va
 
 ---
 
-## 🚀 Texnologiyalar
-- **Backend:** Node.js, Express.js
-- **Xavfsizlik:** JWT (JSON Web Token), Bcrypt.js, Helmet, CORS, Express-Rate-Limit, Express-Slow-Down
-- **Session & Cookie:** HttpOnly cookies (7 kunlik Refresh Token)
-- **Email:** Nodemailer (6 xonali tasdiqlash kodi)
-- **Frontend:** HTML5, CSS3 (Vercel/Linear dark modern design), JavaScript Vanilla SPA
+## 🚀 Yangi Mantiq: Email orqali Parol yuborish tizimi
+
+Foydalanuvchi ro'yxatdan o'tganda (Register):
+1. Foydalanuvchi o'z **email** manzilini kiritadi.
+2. Tizim avtomatik ravishda xavfsiz 6 xonali kirish parolini yaratadi, **bcrypt** bilan heshlaydi va **ushbu emailga yuboradi**.
+3. Foydalanuvchi pochtasiga kelgan parolni saytga kirish (Login) oynasida kiritadi va saytga kiradi!
+4. Parol yoddan ko'tarilsa yoki kelmasa — **«Parolni qayta yuborish»** tugmasi orqali yangi parol darhol emailga jo'natiladi.
 
 ---
 
-## 📋 Amalga oshirilgan vazifalar
+## 📋 Amalga oshirilgan barcha talablar
 
 | # | Vazifa | Holat | Tavsif |
 |---|--------|-------|--------|
@@ -21,7 +22,7 @@ EduHub o'quv markazi uchun xavfsiz autentifikatsiya, role-based authorization va
 | **2** | **Role-Based Authorization** | ✅ Bajarildi | `user` va `admin` rollari. Faqat admin kirishi mumkin bo'lgan `GET /admin/dashboard` endpointi |
 | **3** | **Session & Cookie** | ✅ Bajarildi | Refresh token httpOnly cookie orqali uzatiladi. `POST /auth/refresh` yangi access token qaytaradi |
 | **4** | **Protection va Security** | ✅ Bajarildi | Helmet (xavfsiz headerlar), CORS (faqat `http://localhost:3000`), Rate limiting (`/auth/login` ga 1 daqiqada 5 ta), DDoS ga qarshi Slow-down |
-| **5** | **Email Verification** | ✅ Bajarildi | Ro'yxatdan o'tganda emailga 6 xonali tasdiqlash kodi yuboriladi. `POST /auth/verify` orqali tasdiqlanadi |
+| **5** | **Email Verification / Password Delivery** | ✅ Bajarildi | Ro'yxatdan o'tganda emailga kirish paroli yuboriladi va faqat o'sha parol bilan tizimga kirish mumkin |
 | **6** | **Auth Required API (Protected)** | ✅ Bajarildi | `GET /profile` faqat access token bilan ochiladi. Token muddati tugasa, refresh token bilan avtomatik yangilanadi |
 | **7** | **CRUD Kurslar Mini-API** | ✅ Bajarildi | `GET /courses` — barcha uchun ochiq. `POST`, `PUT`, `DELETE /courses/:id` — faqat admin uchun |
 
@@ -44,30 +45,40 @@ Server ishga tushgach brauzerda oching:
 
 ---
 
+## 📧 Google orqali haqiqiy pochtaga xat yuborish (.env)
+
+Sayt **Google orqali har qanday haqiqiy emailga** xat yuborishni qo'llab-quvvatlaydi.
+
+### 1-Usul: Google App Password (Eng oson va tezkor, 1 daqiqa)
+1. Google hisobingizga kiring: [myaccount.google.com/security](https://myaccount.google.com/security)
+2. **2-Step Verification** (2 bosqichli tekshiruv) ni yoqing.
+3. [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) ga kiring.
+4. "EduHub" deb nom berib **16 xonali maxsus parol** oling.
+5. `.env` fayliga yozing:
+   ```env
+   EMAIL_USER=sizning_pochtangiz@gmail.com
+   EMAIL_PASS=xxxx xxxx xxxx xxxx
+   ```
+
+### 2-Usul: Google Cloud Console (OAuth 2.0)
+1. [console.cloud.google.com](https://console.cloud.google.com) da loyiha oching.
+2. **Gmail API** ni yoqing (Enable).
+3. **Credentials** bo'limida OAuth 2.0 Client ID (Web) yarating.
+4. `.env` fayliga yozing:
+   ```env
+   EMAIL_USER=sizning_pochtangiz@gmail.com
+   GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=your_client_secret
+   GOOGLE_REFRESH_TOKEN=your_refresh_token
+   ```
+
+*Eslatma: Agar `.env` da Google sozlanmagan bo'lsa, tizim avtomatik ravishda Ethereal demo rejimida ishlaydi va parolni ekranning o'zida ko'rsatib, 1-klikda to'ldirish imkonini beradi.*
+
+---
+
 ## 🔑 Demo hisoblar
 
 - **Admin hisob:**
   - Email: `admin@example.com`
   - Parol: `admin123`
   - Huquqi: To'liq admin panel, kurslarni qo'shish/tahrirlash/o'chirish, foydalanuvchilar rollarini o'zgartirish
-
-- **Yangi foydalanuvchi:**
-  - Ro'yxatdan o'tish sahifasida istalgan email bilan hisob ochishingiz mumkin.
-  - Ro'yxatdan o'tgach, emailingizga 6 xonali kod keladi. Kodni kiritib profilingizga kirasiz.
-
----
-
-## 📬 Haqiqiy Gmail orqali xat yuborish sozlamasi (.env)
-
-Agar 6 xonali kod haqiqiy pochtangizga borishini xohlasangiz, `.env` fayliga Gmail ma'lumotlaringizni qo'shing:
-
-```env
-PORT=3000
-ACCESS_TOKEN_SECRET=super_secret_access_key_change_me_in_production_2024
-REFRESH_TOKEN_SECRET=super_secret_refresh_key_change_me_in_production_2024
-
-# Haqiqiy Gmail:
-EMAIL_USER=sizning_pochtangiz@gmail.com
-EMAIL_PASS=xxxx xxxx xxxx xxxx   # Google Account -> Security -> App Passwords (16 xonali parol)
-```
-*Eslatma: Agar `.env` da email sozlanmagan bo'lsa, tizim demo rejimda ishlaydi va kodni ekranning o'zida ko'rsatib, 1-klikda to'ldirish imkonini beradi.*
