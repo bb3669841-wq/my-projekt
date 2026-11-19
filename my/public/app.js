@@ -9,9 +9,9 @@ let state = {
   accessToken: null,
   currentPage: 'home',
   adminTab: 'overview', // 'overview' | 'courses' | 'users' | 'security'
-  verifyEmail: null,     // email waiting for verification
+  loginEmail: null,      // Pre-filled login email
+  lastSentPassword: null,// Password sent to email
   emailPreviewUrl: null, // Ethereal preview link
-  lastCode: null,        // Last generated code
   isRealEmail: false     // Whether real email was sent
 };
 
@@ -276,9 +276,12 @@ function renderHome() {
 
 // ── LOGIN ─────────────────────────────────────────────────────
 function renderLogin() {
+  const currentEmail = state.loginEmail || 'admin@example.com';
+  const isAfterRegister = !!state.lastSentPassword;
+
   return `
     <div class="auth-page">
-      <div class="auth-card">
+      <div class="auth-card" style="max-width:440px">
         <div class="auth-logo">
           <div class="logo-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -289,16 +292,44 @@ function renderLogin() {
           EduHub
         </div>
         <h2>Tizimga kirish</h2>
-        <p class="auth-subtitle">Hisobingizga kirish uchun ma'lumotlarni kiriting</p>
+        <p class="auth-subtitle">Emailingizga kelgan parol bilan kiring</p>
+
+        ${isAfterRegister ? `
+          <div style="padding:14px 16px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:var(--r-sm);margin-bottom:20px;">
+            <div style="font-size:0.85rem;color:var(--accent-light);font-weight:600;margin-bottom:6px">
+              📬 Parol <strong>${escapeHtml(state.loginEmail)}</strong> pochtangizga yuborildi!
+            </div>
+            ${!state.isRealEmail && state.lastSentPassword ? `
+              <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:6px;margin-top:8px">
+                <span style="font-size:0.82rem;color:var(--text-40)">Emailga borgan parol:</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:var(--accent-light);font-size:1.1rem;letter-spacing:2px">${state.lastSentPassword}</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="autoFillLoginPassword('${state.lastSentPassword}')" style="width:100%;margin-top:8px">
+                ⚡ Parolni avtomatik kiritish (1-klik)
+              </button>
+            ` : ''}
+            ${state.emailPreviewUrl ? `
+              <div style="margin-top:8px;font-size:0.75rem;text-align:center">
+                <a href="${state.emailPreviewUrl}" target="_blank" rel="noopener" style="color:var(--accent-light);text-decoration:underline">📬 Ethereal xatini ochish</a>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+
         <form class="auth-form" onsubmit="handleLogin(event)">
           <div class="form-group">
             <label class="form-label">Email</label>
-            <input type="email" class="form-input" id="loginEmail" placeholder="admin@example.com" value="admin@example.com" required>
+            <input type="email" class="form-input" id="loginEmail" placeholder="siz@example.com" value="${escapeHtml(currentEmail)}" required>
           </div>
           <div class="form-group">
-            <label class="form-label">Parol</label>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <label class="form-label">Emailga kelgan parol</label>
+              <button type="button" onclick="resendPassword()" style="background:none;border:none;color:var(--accent-light);font-size:0.72rem;cursor:pointer;padding:0">
+                🔄 Parolni qayta yuborish
+              </button>
+            </div>
             <div class="form-input-group">
-              <input type="password" class="form-input" id="loginPassword" placeholder="••••••••" value="admin123" required>
+              <input type="password" class="form-input" id="loginPassword" placeholder="Emailingizdagi parolni kiriting" value="${isAfterRegister ? state.lastSentPassword : (currentEmail === 'admin@example.com' ? 'admin123' : '')}" required autofocus>
               <button type="button" class="toggle-password" onclick="togglePass('loginPassword', this)">Ko'rish</button>
             </div>
           </div>
@@ -307,19 +338,50 @@ function renderLogin() {
 
         <div style="display:flex; gap:8px; margin-top:16px;">
           <button class="btn btn-secondary btn-sm" style="flex:1" onclick="quickAdminLogin()">⚡ Admin sifatida kirish</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="quickUserLogin()">👤 User sifatida kirish</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="navigate('register')">✉️ Yangi hisob ochish</button>
         </div>
 
         <div class="auth-footer">
           Hisobingiz yo'qmi? <a href="#" onclick="navigate('register')">Ro'yxatdan o'ting</a>
         </div>
         <div class="demo-box">
-          <strong>Demo Admin:</strong> admin@example.com / admin123<br>
-          <strong>Demo User:</strong> student@example.com / user123
+          <strong>Demo Admin:</strong> admin@example.com / admin123
         </div>
       </div>
     </div>
   `;
+}
+
+function autoFillLoginPassword(pwd) {
+  const pwdInput = document.getElementById('loginPassword');
+  if (pwdInput) pwdInput.value = pwd;
+  toast('Parol kiritildi! Endi "Kirish" tugmasini bosing', 'info');
+}
+
+async function resendPassword() {
+  const emailInput = document.getElementById('loginEmail');
+  const email = emailInput ? emailInput.value.trim() : state.loginEmail;
+
+  if (!email) {
+    toast('Iltimos, emailingizni kiriting', 'error');
+    return;
+  }
+
+  toast('Yangi parol emailingizga yuborilmoqda...', 'info');
+  const { ok, data } = await api('/auth/resend-password', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+
+  if (ok) {
+    state.lastSentPassword = data.password;
+    state.emailPreviewUrl = data.emailPreviewUrl || null;
+    state.isRealEmail = data.isReal || false;
+    toast(data.message || 'Yangi parol yuborildi! 📬', 'success');
+    render();
+  } else {
+    toast(data.error || 'Parolni yuborishda xatolik', 'error');
+  }
 }
 
 function togglePass(id, btn) {
@@ -339,8 +401,8 @@ async function handleLogin(e) {
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Kirish...';
 
-  const email = document.getElementById('loginEmail').value;
-  const password = document.getElementById('loginPassword').value;
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value.trim();
 
   const { ok, data } = await api('/auth/login', {
     method: 'POST',
@@ -350,6 +412,7 @@ async function handleLogin(e) {
   if (ok) {
     state.user = data.user;
     state.accessToken = data.accessToken;
+    state.lastSentPassword = null;
     toast(`Xush kelibsiz, ${data.user.email}! 🎉`, 'success');
 
     // If admin, go straight to Admin Panel!
@@ -358,13 +421,8 @@ async function handleLogin(e) {
     } else {
       navigate('profile');
     }
-  } else if (data.requiresVerification) {
-    // Email not verified — redirect to verification page
-    state.verifyEmail = data.email || email;
-    toast('Email tasdiqlanmagan. Kodni kiriting.', 'error');
-    navigate('verify');
   } else {
-    toast(data.error || 'Kirish xatosi', 'error');
+    toast(data.error || 'Kirish xatosi. Emailingizga borgan parolni to\'g\'ri kiriting.', 'error');
     btn.disabled = false;
     btn.innerHTML = 'Kirish';
   }
@@ -374,7 +432,7 @@ async function handleLogin(e) {
 function renderRegister() {
   return `
     <div class="auth-page">
-      <div class="auth-card">
+      <div class="auth-card" style="max-width:440px">
         <div class="auth-logo">
           <div class="logo-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -385,25 +443,30 @@ function renderRegister() {
           EduHub
         </div>
         <h2>Ro'yxatdan o'tish</h2>
-        <p class="auth-subtitle">EduHub o'quv markaziga xush kelibsiz</p>
+        <p class="auth-subtitle">Emailingizni kiriting — kirish paroli pochtangizga yuboriladi</p>
+
+        <div style="padding:12px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:var(--r-sm);margin-bottom:20px;font-size:0.82rem;color:var(--accent-light);line-height:1.5">
+          ℹ️ <strong>Mantiq:</strong> Ro'yxatdan o'tganda siz kiritgan emailga kirish paroli yuboriladi. Shu parol orqali saytga kirasiz.
+        </div>
+
         <form class="auth-form" onsubmit="handleRegister(event)">
           <div class="form-group">
-            <label class="form-label">Email</label>
-            <input type="email" class="form-input" id="regEmail" placeholder="siz@example.com" required>
+            <label class="form-label">Email manzil</label>
+            <input type="email" class="form-input" id="regEmail" placeholder="sizning_emailingiz@gmail.com" required autofocus>
           </div>
           <div class="form-group">
-            <label class="form-label">Parol</label>
+            <label class="form-label">Parol (Ixtiyoriy)</label>
             <div class="form-input-group">
-              <input type="password" class="form-input" id="regPassword" placeholder="Kamida 6 ta belgi" required minlength="6">
+              <input type="password" class="form-input" id="regPassword" placeholder="Bo'sh qolsa, 6 xonali parol emailga boradi">
               <button type="button" class="toggle-password" onclick="togglePass('regPassword', this)">Ko'rish</button>
             </div>
+            <span style="font-size:0.75rem;color:var(--text-40)">Bo'sh qoldirishingiz mumkin — parol emailingizga boradi.</span>
           </div>
-          <div class="form-group">
-            <label class="form-label">Parolni tasdiqlang</label>
-            <input type="password" class="form-input" id="regPasswordConfirm" placeholder="Parolni qaytadan kiriting" required>
-          </div>
-          <button type="submit" class="btn btn-primary" id="regBtn">Hisob yaratish</button>
+          <button type="submit" class="btn btn-primary" id="regBtn" style="padding:12px">
+            ✉️ Ro'yxatdan o'tish va parolni emailga olish
+          </button>
         </form>
+
         <div class="auth-footer">
           Hisobingiz bormi? <a href="#" onclick="navigate('login')">Kirish</a>
         </div>
@@ -416,17 +479,11 @@ async function handleRegister(e) {
   e.preventDefault();
   const btn = document.getElementById('regBtn');
 
-  const email = document.getElementById('regEmail').value;
-  const password = document.getElementById('regPassword').value;
-  const confirm = document.getElementById('regPasswordConfirm').value;
-
-  if (password !== confirm) {
-    toast('Parollar mos kelmadi', 'error');
-    return;
-  }
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value.trim();
 
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Yaratilmoqda...';
+  btn.innerHTML = '<div class="spinner"></div> Parol emailga yuborilmoqda...';
 
   const { ok, data } = await api('/auth/register', {
     method: 'POST',
@@ -434,16 +491,16 @@ async function handleRegister(e) {
   });
 
   if (ok) {
-    state.verifyEmail = email;
+    state.loginEmail = email;
+    state.lastSentPassword = data.password;
     state.emailPreviewUrl = data.emailPreviewUrl || null;
-    state.lastCode = data.code || null;
     state.isRealEmail = data.isReal || false;
-    toast(data.isReal ? 'Kod emailingizga yuborildi! 📬' : 'Tasdiqlash kodi tayyorlandi! 📧', 'success');
-    navigate('verify');
+    toast(data.message || 'Kirish paroli emailingizga yuborildi! 📬', 'success');
+    navigate('login');
   } else {
     toast(data.error || 'Ro\'yxatdan o\'tish xatosi', 'error');
     btn.disabled = false;
-    btn.innerHTML = 'Hisob yaratish';
+    btn.innerHTML = '✉️ Ro\'yxatdan o\'tish va parolni emailga olish';
   }
 }
 

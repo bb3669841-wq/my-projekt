@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
 const db = require('../db');
-const { generateCode, sendVerificationEmail } = require('../services/email');
+const { generatePassword, sendPasswordEmail } = require('../services/email');
 
 // ── Rate limit for /auth/login — 5 requests per minute ───────
 const loginLimiter = rateLimit({
@@ -34,26 +34,28 @@ function generateRefreshToken(user) {
 }
 
 // ── POST /auth/register ──────────────────────────────────────
-// Registers user, sends 6-digit verification code to email
+// On register: password is sent to the user's email, which they enter to log in
 router.post('/register', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email } = req.body;
+    let password = req.body.password;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email va parol kiritilishi shart' });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Parol kamida 6 ta belgidan iborat bo\'lishi kerak' });
+    if (!email) {
+      return res.status(400).json({ error: 'Email kiritilishi shart' });
     }
 
     // Check if user exists
     const existing = db.users.find(u => u.email === email);
     if (existing) {
-      return res.status(409).json({ error: 'Bu email allaqachon ro\'yxatdan o\'tgan' });
+      return res.status(409).json({ error: 'Bu email allaqachon ro\'yxatdan o\'tgan. Kirish sahifasidan foydalaning.' });
     }
 
-    // Hash password
+    // If password not provided or too short, generate 6-digit password
+    if (!password || password.trim().length < 6) {
+      password = generatePassword();
+    }
+
+    // Hash password with bcrypt
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = {
@@ -61,38 +63,28 @@ router.post('/register', async (req, res) => {
       email,
       password: hashedPassword,
       role: 'user',
-      emailVerified: false,
+      emailVerified: true,
       createdAt: new Date().toISOString()
     };
 
     db.users.push(newUser);
 
-    // Generate 6-digit code and send via email
-    const code = generateCode();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-
-    // Remove any existing codes for this email
-    db.verificationCodes = db.verificationCodes.filter(vc => vc.email !== email);
-
-    // Store new code
-    db.verificationCodes.push({ email, code, expiresAt });
-
-    // Send email with code
+    // Send the password to the user's email
     let emailResult = null;
     try {
-      emailResult = await sendVerificationEmail(email, code);
+      emailResult = await sendPasswordEmail(email, password);
     } catch (emailErr) {
       console.error('Email yuborishda xato:', emailErr.message);
     }
 
     res.status(201).json({
       message: emailResult?.isReal 
-        ? `Ro'yxatdan o'tdingiz! ${email} pochtangizga 6 xonali kod yuborildi.` 
-        : `Ro'yxatdan o'tdingiz! 6 xonali tasdiqlash kodi yuborildi.`,
-      requiresVerification: true,
-      code: code,
+        ? `Ro'yxatdan o'tdingiz! Kirish paroli ${email} pochtangizga yuborildi.` 
+        : `Ro'yxatdan o'tdingiz! Kirish paroli emailingizga yuborildi.`,
+      email,
+      password,
       isReal: emailResult?.isReal || false,
-      user: { id: newUser.id, email: newUser.email, role: newUser.role, emailVerified: false },
+      user: { id: newUser.id, email: newUser.email, role: newUser.role, emailVerified: true },
       emailPreviewUrl: emailResult?.previewUrl || null
     });
   } catch (err) {
@@ -101,54 +93,8 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ── POST /auth/verify — Email verification with 6-digit code ─
-router.post('/verify', async (req, res) => {
-  try {
-    const { email, code } = req.body;
-
-    if (!email || !code) {
-      return res.status(400).json({ error: 'Email va tasdiqlash kodi kiritilishi shart' });
-    }
-
-    // Find the stored code
-    const stored = db.verificationCodes.find(
-      vc => vc.email === email && vc.code === code
-    );
-
-    if (!stored) {
-      return res.status(400).json({ error: 'Noto\'g\'ri tasdiqlash kodi' });
-    }
-
-    // Check expiration
-    if (new Date() > new Date(stored.expiresAt)) {
-      // Remove expired code
-      db.verificationCodes = db.verificationCodes.filter(vc => vc.email !== email);
-      return res.status(400).json({ error: 'Tasdiqlash kodining muddati tugagan. Yangi kod so\'rang.' });
-    }
-
-    // Mark user as verified
-    const user = db.users.find(u => u.email === email);
-    if (!user) {
-      return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
-    }
-
-    user.emailVerified = true;
-
-    // Remove used code
-    db.verificationCodes = db.verificationCodes.filter(vc => vc.email !== email);
-
-    res.json({
-      message: 'Email muvaffaqiyatli tasdiqlandi! ✅',
-      user: { id: user.id, email: user.email, role: user.role, emailVerified: true }
-    });
-  } catch (err) {
-    console.error('Verify error:', err);
-    res.status(500).json({ error: 'Ichki server xatosi' });
-  }
-});
-
-// ── POST /auth/resend-code — Resend verification code ────────
-router.post('/resend-code', async (req, res) => {
+// ── POST /auth/resend-password ───────────────────────────────
+router.post('/resend-password', async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -161,36 +107,24 @@ router.post('/resend-code', async (req, res) => {
       return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
     }
 
-    if (user.emailVerified) {
-      return res.status(400).json({ error: 'Email allaqachon tasdiqlangan' });
-    }
+    const newPassword = generatePassword();
+    user.password = await bcrypt.hash(newPassword, 10);
 
-    // Generate new code
-    const code = generateCode();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    // Remove old code
-    db.verificationCodes = db.verificationCodes.filter(vc => vc.email !== email);
-    db.verificationCodes.push({ email, code, expiresAt });
-
-    // Send email
     let emailResult = null;
     try {
-      emailResult = await sendVerificationEmail(email, code);
+      emailResult = await sendPasswordEmail(email, newPassword);
     } catch (emailErr) {
       console.error('Email yuborishda xato:', emailErr.message);
     }
 
     res.json({
-      message: emailResult?.isReal 
-        ? `Yangi tasdiqlash kodi ${email} pochtangizga yuborildi!`
-        : 'Yangi tasdiqlash kodi yuborildi!',
-      code: code,
+      message: `Yangi kirish paroli ${email} pochtangizga yuborildi!`,
+      password: newPassword,
       isReal: emailResult?.isReal || false,
       emailPreviewUrl: emailResult?.previewUrl || null
     });
   } catch (err) {
-    console.error('Resend error:', err);
+    console.error('Resend password error:', err);
     res.status(500).json({ error: 'Ichki server xatosi' });
   }
 });
@@ -212,15 +146,6 @@ router.post('/login', loginLimiter, async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ error: 'Noto\'g\'ri email yoki parol' });
-    }
-
-    // Check if email is verified
-    if (!user.emailVerified) {
-      return res.status(403).json({
-        error: 'Email tasdiqlanmagan. Iltimos, emailingizga yuborilgan kodni kiriting.',
-        requiresVerification: true,
-        email: user.email
-      });
     }
 
     // Generate tokens
